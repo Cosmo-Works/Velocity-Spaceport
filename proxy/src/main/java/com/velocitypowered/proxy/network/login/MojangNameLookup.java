@@ -38,7 +38,9 @@ public final class MojangNameLookup {
     SILENT
   }
 
-  static final String LOOKUP = "https://api.mojang.com/users/profiles/minecraft/";
+  // Overridable like mojang.sessionserver, so a test network can stand in for Mojang.
+  static final String LOOKUP = System.getProperty("spaceport.mojang-lookup",
+      "https://api.mojang.com/users/profiles/minecraft/");
 
   private static final AtomicLong RATE_LIMITED = new AtomicLong();
 
