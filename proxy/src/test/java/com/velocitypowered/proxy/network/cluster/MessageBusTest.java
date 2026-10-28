@@ -62,7 +62,7 @@ class MessageBusTest {
   }
 
   private MessageBus bus(String id) {
-    MessageBus bus = new MessageBus(lossy, id, timer);
+    MessageBus bus = new MessageBus(lossy::publish, id, timer);
     store.subscribe("msg:" + id, payload -> {
       try {
         DataInputStream in = MessageBus.decode(payload);

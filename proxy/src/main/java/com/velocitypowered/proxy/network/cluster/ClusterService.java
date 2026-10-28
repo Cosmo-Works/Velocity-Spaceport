@@ -133,6 +133,7 @@ public final class ClusterService implements AutoCloseable {
   private final Map<String, Long> sweepAttempts = new HashMap<>();
   private final String candidateGeneration = UUID.randomUUID().toString();
   private final String instance = UUID.randomUUID().toString();
+  private final FrameSeal seal;
   private final MessageBus bus;
   private final NetworkConfig config;
   private final Map<UUID, TicketRoute> ticketRoutes = new ConcurrentHashMap<>();
@@ -197,7 +198,8 @@ public final class ClusterService implements AutoCloseable {
     this.host = host;
     this.newestWins = config.newestWins();
     this.localOnlyWhenDown = config.localOnlyWhenDown();
-    this.bus = new MessageBus(store, proxyId, timer);
+    this.seal = new FrameSeal(store, () -> ticketKeys, System::currentTimeMillis);
+    this.bus = new MessageBus(seal::publish, proxyId, timer);
     this.config = config;
     this.authOutage = config.authOutageMode();
   }
@@ -220,8 +222,8 @@ public final class ClusterService implements AutoCloseable {
       }
       // Wall clock first, so a store that lost its counter cannot hand out an old epoch again.
       epoch = Math.max(wall, store.nextEpoch().get(5, TimeUnit.SECONDS));
-      store.subscribe("msg:all", this::onMessage).get(5, TimeUnit.SECONDS);
-      store.subscribe("msg:" + proxyId, this::onMessage).get(5, TimeUnit.SECONDS);
+      seal.subscribe("msg:all", this::onMessage).get(5, TimeUnit.SECONDS);
+      seal.subscribe("msg:" + proxyId, this::onMessage).get(5, TimeUnit.SECONDS);
       Tick first = store.tick(proxyId, host.localPlayerCount(), encodedServers(), instance,
           draining, TTL_MILLIS, candidateGeneration).get(5, TimeUnit.SECONDS);
       applyTick(first);
@@ -242,7 +244,7 @@ public final class ClusterService implements AutoCloseable {
     if (pendingResubscribe) {
       pendingResubscribe = false;
       for (String channel : List.of("msg:all", "msg:" + proxyId)) {
-        store.subscribe(channel, this::onMessage).exceptionally(ex -> {
+        seal.subscribe(channel, this::onMessage).exceptionally(ex -> {
           pendingResubscribe = true;
           return null;
         });
@@ -729,7 +731,7 @@ public final class ClusterService implements AutoCloseable {
   }
 
   private void publish(String channel, byte[] frame) {
-    store.publish(channel, frame).exceptionally(ex -> null); // best effort, never the only copy
+    seal.publish(channel, frame).exceptionally(ex -> null); // best effort, never the only copy
   }
 
   private byte[] frame(byte type, UUID uuid, @Nullable String name, @Nullable String server,
@@ -933,8 +935,8 @@ public final class ClusterService implements AutoCloseable {
             + " network", file);
       }
     } catch (IOException | RuntimeException e) {
-      logger.error("Cannot use the transfer ticket keys in {}; transfers and ticket logins are"
-          + " off (players log in normally)", file, e);
+      logger.error("Cannot use the network keys in {}; transfers, ticket logins and messages"
+          + " between proxies (kicks, network commands) are off", file, e);
     }
   }
 
@@ -1164,11 +1166,12 @@ public final class ClusterService implements AutoCloseable {
    * @param ticketsAccepted transfer tickets that passed every check
    * @param ticketsRejected transfer tickets that were missing nothing but failed a check
    * @param authSkipped Mojang session checks skipped thanks to a ticket
+   * @param busRejected network messages dropped as unsigned, forged, stale or replayed
    */
   public record Stats(long claimsOk, long claimsDenied, long claimsUnavailable, long storeErrors,
                       long tickMicros, long tickMicrosAvg, long busRequests, long busTimeouts,
                       long ticketsAccepted, long ticketsRejected, long authSkipped,
-                      long outageLogins, long loginsLimited) {
+                      long outageLogins, long loginsLimited, long busRejected) {
   }
 
   /**
@@ -1179,7 +1182,8 @@ public final class ClusterService implements AutoCloseable {
   public Stats stats() {
     return new Stats(claimsOk.sum(), claimsDenied.sum(), claimsUnavailable.sum(), storeErrors.sum(),
         tickMicros, tickMicrosAvg, bus.requests(), bus.timeouts(), ticketsAccepted.sum(),
-        ticketsRejected.sum(), authSkipped.sum(), outageLogins.sum(), loginsLimited.sum());
+        ticketsRejected.sum(), authSkipped.sum(), outageLogins.sum(), loginsLimited.sum(),
+        seal.rejected());
   }
 
   /**

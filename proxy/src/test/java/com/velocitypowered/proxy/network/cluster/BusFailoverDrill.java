@@ -44,7 +44,7 @@ class BusFailoverDrill {
   }
 
   private static MessageBus bus(NetworkStore store, String id, ScheduledExecutorService timer) {
-    MessageBus bus = new MessageBus(store, id, timer);
+    MessageBus bus = new MessageBus(store::publish, id, timer);
     store.subscribe("msg:" + id, payload -> {
       try {
         DataInputStream in = MessageBus.decode(payload);

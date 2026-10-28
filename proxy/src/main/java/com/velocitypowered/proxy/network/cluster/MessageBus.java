@@ -90,13 +90,19 @@ public final class MessageBus {
     CompletableFuture<Reply> handle(String from, DataInputStream in) throws IOException;
   }
 
+  /** Sends a frame to a pub/sub channel. */
+  @FunctionalInterface
+  public interface Publisher {
+    CompletableFuture<Void> publish(String channel, byte[] frame);
+  }
+
   /** Writes a payload. */
   @FunctionalInterface
   public interface Writer {
     void write(DataOutputStream out) throws IOException;
   }
 
-  private final NetworkStore store;
+  private final Publisher store;
   private final String proxyId;
   private final ScheduledExecutorService timer;
   private final Map<Byte, Handler> handlers = new ConcurrentHashMap<>();
@@ -108,7 +114,7 @@ public final class MessageBus {
   private final LongAdder requests = new LongAdder();
   private final LongAdder timeouts = new LongAdder();
 
-  MessageBus(NetworkStore store, String proxyId, ScheduledExecutorService timer) {
+  MessageBus(Publisher store, String proxyId, ScheduledExecutorService timer) {
     this.store = store;
     this.proxyId = proxyId;
     this.timer = timer;

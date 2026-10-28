@@ -332,6 +332,8 @@ public final class ProxyHealth implements AutoCloseable {
           s.busRequests());
       counter(out, "spaceport_bus_timeouts_total", "requests to other proxies with no answer",
           s.busTimeouts());
+      counter(out, "spaceport_bus_rejected_total",
+          "network messages dropped as unsigned, forged, stale or replayed", s.busRejected());
       counter(out, "spaceport_tickets_accepted_total", "transfer tickets accepted",
           s.ticketsAccepted());
       counter(out, "spaceport_tickets_rejected_total", "transfer tickets that failed a check",
