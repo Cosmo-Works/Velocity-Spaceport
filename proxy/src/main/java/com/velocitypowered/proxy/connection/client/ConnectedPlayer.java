@@ -965,8 +965,17 @@ public class ConnectedPlayer implements MinecraftConnectionAssociation, Player, 
     this.routeAfterLogin = route;
   }
 
-  /** The backend reported an AuthMe login for this connection. */
-  public void authMeLoggedIn() {
+  /**
+   * A backend reported an AuthMe login for this connection.
+   *
+   * @param from the backend that sent it; only a login limbo opens a closed session
+   */
+  public void authMeLoggedIn(RegisteredServer from) {
+    if (!account.open() && !LoginGate.isLimbo(from.getServerInfo().getName(),
+        server.getConfiguration().getAttemptConnectionOrder(),
+        server.getConfiguration().getNetworkConfig().loginLobbies())) {
+      return;
+    }
     LoginGate.authMeLoggedIn(account);
     if (enteredLobby) {
       return;

@@ -190,7 +190,7 @@ public class TransitionSessionHandler implements MinecraftSessionHandler {
   @Override
   public boolean handle(PluginMessagePacket packet) {
     if (LoginGate.LOGGED_IN_CHANNEL.equals(packet.getChannel())) {
-      serverConn.getPlayer().authMeLoggedIn();
+      serverConn.getPlayer().authMeLoggedIn(serverConn.getServer());
       return true;
     }
     if (bungeecordMessageResponder.process(packet)) {

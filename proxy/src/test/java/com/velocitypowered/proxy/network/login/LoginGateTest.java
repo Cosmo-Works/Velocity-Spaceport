@@ -216,6 +216,16 @@ class LoginGateTest {
   }
 
   @Test
+  void onlyLimboReportsTheLogin() {
+    List<String> tryList = List.of("auth-1", "lobby");
+    assertTrue(LoginGate.isLimbo("auth-1", tryList, LOBBIES));
+    assertTrue(LoginGate.isLimbo("AUTH-1", tryList, LOBBIES));
+    assertFalse(LoginGate.isLimbo("lobby", tryList, LOBBIES));
+    assertFalse(LoginGate.isLimbo("survival", tryList, LOBBIES));
+    assertFalse(LoginGate.isLimbo(null, tryList, LOBBIES));
+  }
+
+  @Test
   void playerAndPluginMovesStayBlockedEvenToTryListServer() {
     List<String> tryList = List.of("auth-1", "auth-2");
     Session locked = LoginGate.untilAuthMe(OFFLINE);

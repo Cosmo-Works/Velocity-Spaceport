@@ -147,8 +147,20 @@ public final class LoginGate {
     if (attempt(session, PublicAction.SERVER_SWITCH) == Decision.ALLOW) {
       return true;
     }
-    return (!joined || proxyFailover) && session != null
-        && LoginLobbies.staying(target, tryList) && !LoginLobbies.staying(target, lobbies);
+    return (!joined || proxyFailover) && session != null && isLimbo(target, tryList, lobbies);
+  }
+
+  /**
+   * Whether a server is a login limbo: on the try list and not a main lobby. Only a limbo may
+   * report the login that opens a session; any plugin on any other backend could send it too.
+   *
+   * @param server the server's name
+   * @param tryList the servers the proxy falls back through
+   * @param lobbies the main login lobbies
+   * @return whether it is a limbo
+   */
+  public static boolean isLimbo(String server, List<String> tryList, List<String> lobbies) {
+    return LoginLobbies.staying(server, tryList) && !LoginLobbies.staying(server, lobbies);
   }
 
   /**

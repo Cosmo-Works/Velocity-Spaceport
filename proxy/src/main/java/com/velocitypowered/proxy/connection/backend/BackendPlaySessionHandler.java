@@ -332,7 +332,7 @@ public class BackendPlaySessionHandler implements MinecraftSessionHandler {
       return true;
     }
     if (LoginGate.LOGGED_IN_CHANNEL.equals(packet.getChannel())) {
-      serverConn.getPlayer().authMeLoggedIn();
+      serverConn.getPlayer().authMeLoggedIn(serverConn.getServer());
       return true;
     }
 
