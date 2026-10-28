@@ -65,6 +65,20 @@ class PremiumLoginTest {
   }
 
   @Test
+  void onlyStampPutsTheMarkOnProfiles() {
+    GameProfile forged = new GameProfile(UUID.randomUUID(), "Name", List.of(
+        new GameProfile.Property(PremiumProof.PROPERTY, "1", "forged"),
+        new GameProfile.Property("textures", "t", "s")));
+    GameProfile stripped = PremiumProof.strip(forged);
+    assertFalse(PremiumProof.carries(stripped));
+    assertEquals(1, stripped.getProperties().size());
+    GameProfile stamped = PremiumProof.stamp(forged);
+    assertEquals(2, stamped.getProperties().size());
+    assertTrue(stamped.getProperties().stream()
+        .anyMatch(p -> p.getName().equals(PremiumProof.PROPERTY) && p.getSignature().isEmpty()));
+  }
+
+  @Test
   void theSignedForwardingBlobCarriesTheProof() {
     byte[] secret = "example-forwarding-secret".getBytes(StandardCharsets.UTF_8);
     GameProfile plain = new GameProfile(ID, "Notch", List.of());

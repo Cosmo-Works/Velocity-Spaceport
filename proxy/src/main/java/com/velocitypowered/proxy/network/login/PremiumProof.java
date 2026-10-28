@@ -34,13 +34,22 @@ public final class PremiumProof {
   private PremiumProof() {
   }
 
-  /** Marks a profile as Mojang verified. */
+  /** Marks a profile as Mojang verified, replacing any mark it already carried. */
   public static GameProfile stamp(GameProfile profile) {
-    if (carries(profile)) {
+    List<GameProfile.Property> properties = new ArrayList<>(strip(profile).getProperties());
+    properties.add(new GameProfile.Property(PROPERTY, PRESENT, ""));
+    return profile.withProperties(properties);
+  }
+
+  /**
+   * Drops the mark from a profile Mojang did not verify, wherever it came from (a plugin, a
+   * cached profile), so only {@link #stamp} ever puts it on the forwarded profile.
+   */
+  public static GameProfile strip(GameProfile profile) {
+    List<GameProfile.Property> properties = new ArrayList<>(profile.getProperties());
+    if (!properties.removeIf(p -> PROPERTY.equals(p.getName()))) {
       return profile;
     }
-    List<GameProfile.Property> properties = new ArrayList<>(profile.getProperties());
-    properties.add(new GameProfile.Property(PROPERTY, PRESENT, ""));
     return profile.withProperties(properties);
   }
 

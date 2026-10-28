@@ -105,6 +105,8 @@ public class AuthSessionHandler implements MinecraftSessionHandler {
       if (onlineMode) {
         chosen = PremiumProof.stamp(chosen);
         LoginBus.tell(server, chosen);
+      } else {
+        chosen = PremiumProof.strip(chosen);
       }
 
       ConnectedPlayer player = new ConnectedPlayer(server, chosen,
