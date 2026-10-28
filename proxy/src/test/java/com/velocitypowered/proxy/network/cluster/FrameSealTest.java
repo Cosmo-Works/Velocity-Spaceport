@@ -52,6 +52,7 @@ class FrameSealTest {
   void sameKeyIsHeardOnce() {
     FrameSeal a = seal(keys("k1", 1));
     FrameSeal b = seal(keys("k1", 1));
+    now.addAndGet(1);
     byte[] sealed = a.seal("msg:all", FRAME);
     assertArrayEquals(FRAME, b.open("msg:all", sealed));
     assertNull(b.open("msg:all", sealed), "a replay is dropped");
@@ -63,6 +64,7 @@ class FrameSealTest {
   @Test
   void unsignedForgedOrMovedFramesAreDropped() {
     FrameSeal b = seal(keys("k1", 1));
+    now.addAndGet(1);
     assertNull(b.open("msg:all", FRAME), "unsigned, as an attacker on Redis would send");
     assertNull(b.open("msg:all", seal(keys("k1", 2)).seal("msg:all", FRAME)), "other key");
     assertNull(b.open("msg:all", seal(keys("k9", 1)).seal("msg:all", FRAME)), "unknown key id");
@@ -83,6 +85,13 @@ class FrameSealTest {
   }
 
   @Test
+  void restartCannotReplayEarlierFrames() {
+    byte[] sealed = seal(keys("k1", 1)).seal("msg:all", FRAME);
+    now.addAndGet(1);
+    assertNull(seal(keys("k1", 1)).open("msg:all", sealed));
+  }
+
+  @Test
   void withoutKeysNothingIsSentOrHeard() {
     FrameSeal none = new FrameSeal(store, () -> null, now::get);
     assertNull(none.seal("msg:all", FRAME));
@@ -93,6 +102,7 @@ class FrameSealTest {
   @Test
   void subscribersOnlySeeSignedFrames() {
     FrameSeal a = seal(keys("k1", 1));
+    now.addAndGet(1);
     List<byte[]> heard = new ArrayList<>();
     a.subscribe("msg:all", heard::add).join();
     store.publish("msg:all", FRAME).join();

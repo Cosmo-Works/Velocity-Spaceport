@@ -52,15 +52,19 @@ final class FrameSeal {
   private final NetworkStore store;
   private final Supplier<RouteTicket.@Nullable Keys> keys;
   private final LongSupplier clock;
+  /** Longer than any frame stays fresh (up to MAX_AGE in the past and in the future). */
   private final Cache<ByteBuffer, Boolean> seen = Caffeine.newBuilder()
-      .expireAfterWrite(Duration.ofMillis(MAX_AGE_MILLIS * 2))
+      .expireAfterWrite(Duration.ofMillis(MAX_AGE_MILLIS * 3))
       .build();
+  /** Frames sealed before we started are not in {@link #seen}, so a restart cannot replay them. */
+  private final long started;
   private final LongAdder rejected = new LongAdder();
 
   FrameSeal(NetworkStore store, Supplier<RouteTicket.@Nullable Keys> keys, LongSupplier clock) {
     this.store = store;
     this.keys = keys;
     this.clock = clock;
+    this.started = clock.getAsLong();
   }
 
   /** Frames dropped as unsigned, forged, stale or replayed. */
@@ -126,7 +130,7 @@ final class FrameSeal {
       if (mac.length != MAC_BYTES || expected == null || !MessageDigest.isEqual(mac, expected)) {
         return null;
       }
-      if (Math.abs(clock.getAsLong() - sent) > MAX_AGE_MILLIS
+      if (sent < started || Math.abs(clock.getAsLong() - sent) > MAX_AGE_MILLIS
           || seen.asMap().putIfAbsent(ByteBuffer.wrap(mac), Boolean.TRUE) != null) {
         return null;
       }
