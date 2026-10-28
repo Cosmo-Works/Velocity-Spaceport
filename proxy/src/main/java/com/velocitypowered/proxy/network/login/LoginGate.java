@@ -129,26 +129,26 @@ public final class LoginGate {
   }
 
   /**
-   * Whether a move to another server may start. A player who is not accepted yet moves only
-   * when the proxy itself redirects them after a kick, and only to a try-list server (the
-   * login limbos), never to a server a player or plugin picked. A limbo is a try-list server
-   * that is not also a login lobby, so a failover cannot land on a main lobby unaccepted.
+   * Whether a move to a server may start. A player who is not accepted yet goes only to a
+   * login limbo: their first server, or a server the proxy itself redirects them to after a
+   * kick, never one a player or plugin picked. A limbo is a try-list server that is not also a
+   * login lobby, so neither the first join nor a failover lands on a main lobby unaccepted.
    *
    * @param session the player's session
    * @param joined whether the player has already joined a server
    * @param proxyFailover whether the proxy started this move from a kick or restart
    * @param target the server the move is to
    * @param tryList the servers the proxy falls back through
-   * @param lobbies the main login lobbies, never a failover target before login
+   * @param lobbies the main login lobbies, never a target before login
    * @return whether the move may go ahead
    */
   public static boolean mayMove(Session session, boolean joined, boolean proxyFailover,
       String target, List<String> tryList, List<String> lobbies) {
-    if (!joined || attempt(session, PublicAction.SERVER_SWITCH) == Decision.ALLOW) {
+    if (attempt(session, PublicAction.SERVER_SWITCH) == Decision.ALLOW) {
       return true;
     }
-    return proxyFailover && session != null && LoginLobbies.staying(target, tryList)
-        && !LoginLobbies.staying(target, lobbies);
+    return (!joined || proxyFailover) && session != null
+        && LoginLobbies.staying(target, tryList) && !LoginLobbies.staying(target, lobbies);
   }
 
   /**

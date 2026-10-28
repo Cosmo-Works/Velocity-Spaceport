@@ -297,7 +297,11 @@ public class AuthSessionHandler implements MinecraftSessionHandler {
 
   private CompletableFuture<Void> connectToInitialServer(ConnectedPlayer player) {
     Optional<RegisteredServer> initialFromConfig = player.getNextServerToTry();
-    if (networkRoute != null) {
+    if (!player.loggedIn()) {
+      // Spaceport: an unproven player starts on a limbo; the route waits for the login.
+      player.routeAfterLogin(networkRoute);
+      initialFromConfig = player.firstServer(initialFromConfig);
+    } else if (networkRoute != null) {
       // Spaceport: back to the server the player was on (plugins can still change it)
       Optional<RegisteredServer> routed = server.getServer(networkRoute);
       if (routed.isPresent()) {
@@ -309,6 +313,10 @@ public class AuthSessionHandler implements MinecraftSessionHandler {
 
     return server.getEventManager().fire(event).thenRunAsync(() -> {
       Optional<RegisteredServer> toTry = event.getInitialServer();
+      if (!player.loggedIn()) {
+        // A plugin's pick is gated like any other move; a blocked one falls back to a limbo.
+        toTry = player.firstServer(toTry);
+      }
       if (toTry.isEmpty()) {
         player.disconnect0(
             Component.translatable("velocity.error.no-available-servers", NamedTextColor.RED),

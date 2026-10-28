@@ -43,6 +43,7 @@ import com.velocitypowered.proxy.command.registrar.BrigadierCommandRegistrar;
 import com.velocitypowered.proxy.command.registrar.CommandRegistrar;
 import com.velocitypowered.proxy.command.registrar.RawCommandRegistrar;
 import com.velocitypowered.proxy.command.registrar.SimpleCommandRegistrar;
+import com.velocitypowered.proxy.connection.client.ConnectedPlayer;
 import com.velocitypowered.proxy.event.VelocityEventManager;
 import com.velocitypowered.proxy.plugin.virtual.VelocityVirtualPlugin;
 import io.netty.util.concurrent.FastThreadLocalThread;
@@ -225,7 +226,14 @@ public class VelocityCommandManager implements CommandManager {
       final String cmdLine, final CommandExecuteEvent.InvocationInfo invocationInfo) {
     Preconditions.checkNotNull(source, "source");
     Preconditions.checkNotNull(cmdLine, "cmdLine");
-    return eventManager.fire(new CommandExecuteEvent(source, cmdLine, invocationInfo));
+    CommandExecuteEvent event = new CommandExecuteEvent(source, cmdLine, invocationInfo);
+    if (source instanceof ConnectedPlayer player && !player.loggedIn()) {
+      // Spaceport: before the login, every command (such as /login) goes to the backend
+      // untouched; no proxy command or listener sees it.
+      event.setResult(CommandExecuteEvent.CommandResult.forwardToServer());
+      return CompletableFuture.completedFuture(event);
+    }
+    return eventManager.fire(event);
   }
 
   private boolean executeImmediately0(final CommandSource source, final ParseResults<CommandSource> parsed) {
@@ -362,6 +370,9 @@ public class VelocityCommandManager implements CommandManager {
   @Override
   public boolean hasCommand(String alias, CommandSource source) {
     Preconditions.checkNotNull(source, "source");
+    if (source instanceof ConnectedPlayer player && !player.loggedIn()) {
+      return false;
+    }
     CommandNode<CommandSource> command = getCommand(alias);
     return command != null && command.canUse(source);
   }

@@ -188,6 +188,7 @@ public class ConnectedPlayer implements MinecraftConnectionAssociation, Player, 
   private final LoginGate.Session account;
   private boolean joinedServer;
   private volatile boolean enteredLobby;
+  private volatile @Nullable String routeAfterLogin;
   private final AtomicBoolean searchingLobby = new AtomicBoolean();
   private @Nullable VelocityServerConnection connectedServer;
   private @Nullable VelocityServerConnection connectionInFlight;
@@ -928,13 +929,40 @@ public class ConnectedPlayer implements MinecraftConnectionAssociation, Player, 
   }
 
   private boolean mayChangeServer(@Nullable RegisteredServer target, boolean proxyFailover) {
-    List<String> tryList = new ArrayList<>(server.getConfiguration().getAttemptConnectionOrder());
-    if (serversToTry != null) {
-      tryList.addAll(serversToTry);
-    }
+    // Only the try list: a forced host is picked by the client, so it never counts as a limbo.
     String name = target == null ? null : target.getServerInfo().getName();
-    return LoginGate.mayMove(account, joinedServer, proxyFailover, name, tryList,
+    return LoginGate.mayMove(account, joinedServer, proxyFailover, name,
+        server.getConfiguration().getAttemptConnectionOrder(),
         server.getConfiguration().getNetworkConfig().loginLobbies());
+  }
+
+  /** Whether the account is proven, so commands and permissions apply. */
+  public boolean loggedIn() {
+    return account.open();
+  }
+
+  /**
+   * The first server for a player who has not logged in: the first try-list limbo.
+   *
+   * @param chosen the server the proxy or a plugin picked
+   * @return {@code chosen} when the gate allows it, else the first limbo, else empty
+   */
+  Optional<RegisteredServer> firstServer(Optional<RegisteredServer> chosen) {
+    if (chosen.isPresent() && mayChangeServer(chosen.get(), false)) {
+      return chosen;
+    }
+    for (String name : server.getConfiguration().getAttemptConnectionOrder()) {
+      Optional<RegisteredServer> limbo = server.getServer(name);
+      if (limbo.isPresent() && mayChangeServer(limbo.get(), false)) {
+        return limbo;
+      }
+    }
+    return Optional.empty();
+  }
+
+  /** A transfer or crash route, kept until the login so it never skips the limbo. */
+  void routeAfterLogin(@Nullable String route) {
+    this.routeAfterLogin = route;
   }
 
   /** The backend reported an AuthMe login for this connection. */
@@ -944,6 +972,12 @@ public class ConnectedPlayer implements MinecraftConnectionAssociation, Player, 
       return;
     }
     List<String> lobbies = server.getConfiguration().getNetworkConfig().loginLobbies();
+    String route = routeAfterLogin;
+    routeAfterLogin = null;
+    if (route != null) {
+      lobbies = new ArrayList<>(lobbies);
+      lobbies.add(0, route);
+    }
     String here = connectedServer == null
         ? null
         : connectedServer.getServer().getServerInfo().getName();
@@ -1086,6 +1120,10 @@ public class ConnectedPlayer implements MinecraftConnectionAssociation, Player, 
 
   @Override
   public Tristate getPermissionValue(String permission) {
+    // Spaceport: a claimed name earns none of its permissions until the login is proven.
+    if (!account.open()) {
+      return Tristate.FALSE;
+    }
     return permissionFunction.getPermissionValue(permission);
   }
 

@@ -192,13 +192,27 @@ class LoginGateTest {
   void proxyFailoverMovesAnUnacceptedPlayerOnlyBetweenTryListServers() {
     List<String> tryList = List.of("auth-1", "auth-2");
     Session locked = LoginGate.untilAuthMe(OFFLINE);
-    assertTrue(LoginGate.mayMove(locked, false, false, "lobby", tryList, LOBBIES));
     assertTrue(LoginGate.mayMove(locked, true, true, "auth-2", tryList, LOBBIES));
     assertTrue(LoginGate.mayMove(locked, true, true, "AUTH-2", tryList, LOBBIES));
     assertFalse(LoginGate.mayMove(locked, true, true, "lobby", tryList, LOBBIES));
     assertFalse(LoginGate.mayMove(locked, true, true, null, tryList, LOBBIES));
     assertFalse(LoginGate.mayMove(locked, true, true, "auth-2", List.of(), LOBBIES));
     assertFalse(LoginGate.mayMove(null, true, true, "auth-2", tryList, LOBBIES));
+  }
+
+  @Test
+  void firstServerBeforeLoginIsAlwaysLimbo() {
+    List<String> tryList = List.of("auth-1", "auth-2");
+    Session locked = LoginGate.untilAuthMe(OFFLINE);
+    assertTrue(LoginGate.mayMove(locked, false, false, "auth-1", tryList, LOBBIES));
+    // A crash route, drain hint, forced host or plugin pick never lands outside the limbos.
+    assertFalse(LoginGate.mayMove(locked, false, false, "survival", tryList, LOBBIES));
+    assertFalse(LoginGate.mayMove(locked, false, false, "lobby", tryList, LOBBIES));
+    assertFalse(LoginGate.mayMove(locked, false, false, "lobby", List.of("lobby"), LOBBIES));
+    assertFalse(LoginGate.mayMove(locked, false, false, null, tryList, LOBBIES));
+    assertFalse(LoginGate.mayMove(null, false, false, "auth-1", tryList, LOBBIES));
+    assertTrue(LoginGate.mayMove(LoginGate.ungated(OFFLINE), false, false, "survival",
+        tryList, LOBBIES));
   }
 
   @Test
