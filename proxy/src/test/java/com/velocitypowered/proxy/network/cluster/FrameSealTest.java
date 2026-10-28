@@ -52,11 +52,11 @@ class FrameSealTest {
   void sameKeyIsHeardOnce() {
     FrameSeal a = seal(keys("k1", 1));
     FrameSeal b = seal(keys("k1", 1));
-    now.addAndGet(1);
+    now.addAndGet(FrameSeal.MAX_AHEAD_MILLIS);
     byte[] sealed = a.seal("msg:all", FRAME);
     assertArrayEquals(FRAME, b.open("msg:all", sealed));
     assertNull(b.open("msg:all", sealed), "a replay is dropped");
-    now.addAndGet(1);
+    now.addAndGet(FrameSeal.MAX_AHEAD_MILLIS);
     assertArrayEquals(FRAME, b.open("msg:all", a.seal("msg:all", FRAME)), "a resend is new");
     assertEquals(1, b.rejected());
   }
@@ -64,7 +64,7 @@ class FrameSealTest {
   @Test
   void unsignedForgedOrMovedFramesAreDropped() {
     FrameSeal b = seal(keys("k1", 1));
-    now.addAndGet(1);
+    now.addAndGet(FrameSeal.MAX_AHEAD_MILLIS);
     assertNull(b.open("msg:all", FRAME), "unsigned, as an attacker on Redis would send");
     assertNull(b.open("msg:all", seal(keys("k1", 2)).seal("msg:all", FRAME)), "other key");
     assertNull(b.open("msg:all", seal(keys("k9", 1)).seal("msg:all", FRAME)), "unknown key id");
@@ -87,8 +87,17 @@ class FrameSealTest {
   @Test
   void restartCannotReplayEarlierFrames() {
     byte[] sealed = seal(keys("k1", 1)).seal("msg:all", FRAME);
-    now.addAndGet(1);
+    now.addAndGet(FrameSeal.MAX_AHEAD_MILLIS);
     assertNull(seal(keys("k1", 1)).open("msg:all", sealed));
+  }
+
+  @Test
+  void framesFromTooFarAheadAreDropped() {
+    FrameSeal b = seal(keys("k1", 1));
+    now.addAndGet(FrameSeal.MAX_AHEAD_MILLIS);
+    FrameSeal ahead = new FrameSeal(store, () -> keys("k1", 1),
+        () -> now.get() + FrameSeal.MAX_AHEAD_MILLIS + 1);
+    assertNull(b.open("msg:all", ahead.seal("msg:all", FRAME)));
   }
 
   @Test
@@ -102,7 +111,7 @@ class FrameSealTest {
   @Test
   void subscribersOnlySeeSignedFrames() {
     FrameSeal a = seal(keys("k1", 1));
-    now.addAndGet(1);
+    now.addAndGet(FrameSeal.MAX_AHEAD_MILLIS);
     List<byte[]> heard = new ArrayList<>();
     a.subscribe("msg:all", heard::add).join();
     store.publish("msg:all", FRAME).join();

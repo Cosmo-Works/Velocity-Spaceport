@@ -45,6 +45,8 @@ final class FrameSeal {
   static final byte SEALED = 0x53;
   /** How far a frame's clock may be from ours; a resend is sealed again, so this stays short. */
   static final long MAX_AGE_MILLIS = 30_000;
+  /** How far ahead a sender's clock may be. */
+  static final long MAX_AHEAD_MILLIS = 2_000;
   /** Keeps a bus MAC apart from a transfer ticket MAC made with the same key. */
   private static final byte[] LABEL = "spaceport-bus\0".getBytes(StandardCharsets.UTF_8);
   private static final int MAC_BYTES = 32;
@@ -52,11 +54,16 @@ final class FrameSeal {
   private final NetworkStore store;
   private final Supplier<RouteTicket.@Nullable Keys> keys;
   private final LongSupplier clock;
-  /** Longer than any frame stays fresh (up to MAX_AGE in the past and in the future). */
+  /** Longer than any frame stays fresh. */
   private final Cache<ByteBuffer, Boolean> seen = Caffeine.newBuilder()
       .expireAfterWrite(Duration.ofMillis(MAX_AGE_MILLIS * 3))
       .build();
-  /** Frames sealed before we started are not in {@link #seen}, so a restart cannot replay them. */
+  /**
+   * Frames sealed before we started are not in {@link #seen}, so a restart cannot replay them.
+   * shortcut: a sender whose clock runs ahead still leaves frames up to MAX_AHEAD old that a
+   * restart would take once; refusing them too drops real join and kick frames (never resent),
+   * so move replay state into the store if that window ever matters.
+   */
   private final long started;
   private final LongAdder rejected = new LongAdder();
 
@@ -130,8 +137,9 @@ final class FrameSeal {
       if (mac.length != MAC_BYTES || expected == null || !MessageDigest.isEqual(mac, expected)) {
         return null;
       }
-      if (sent < started || Math.abs(clock.getAsLong() - sent) > MAX_AGE_MILLIS
-          || seen.asMap().putIfAbsent(ByteBuffer.wrap(mac), Boolean.TRUE) != null) {
+      long now = clock.getAsLong();
+      if (sent < started || sent > now + MAX_AHEAD_MILLIS
+          || now - sent > MAX_AGE_MILLIS || seen.asMap().putIfAbsent(ByteBuffer.wrap(mac), Boolean.TRUE) != null) {
         return null;
       }
       return frame;
