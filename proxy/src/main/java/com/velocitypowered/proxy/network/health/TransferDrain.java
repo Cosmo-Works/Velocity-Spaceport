@@ -63,6 +63,7 @@ final class TransferDrain {
   static final MinecraftChannelIdentifier SAVE = MinecraftChannelIdentifier.create("spaceport",
       "save");
   static final String SAVED = "spaceport:saved";
+  static final long TRANSFER_GRACE_SECONDS = 5;
   static final Component RECONNECT =
       Component.translatable("velocity.kick.spaceport-reconnect");
 
@@ -235,6 +236,13 @@ final class TransferDrain {
       connection.write(new ClientboundStoreCookiePacket(ClusterService.ROUTE_COOKIE, ticket));
       connection.write(new TransferPacket(config().transferHost(), config().transferPort()));
       transferred.increment();
+      // The record is released: a client that ignores the Transfer must not stay on as a copy
+      // that a new login of the same name cannot kick.
+      timer.schedule(() -> {
+        if (!connection.isClosed()) {
+          player.disconnect(RECONNECT);
+        }
+      }, TRANSFER_GRACE_SECONDS, TimeUnit.SECONDS);
     });
   }
 
