@@ -178,6 +178,18 @@ class LoginGateTest {
   }
 
   @Test
+  void shippedConfigLeavesTheGateOffWhileTheNetworkIsOff() throws Exception {
+    // A fresh single proxy has no login backend, so a gate there locks every player forever.
+    try (java.io.InputStream in = VelocityConfiguration.class.getClassLoader()
+        .getResourceAsStream("default-velocity.toml")) {
+      com.electronwill.nightconfig.core.CommentedConfig network =
+          new com.electronwill.nightconfig.toml.TomlParser().parse(in).get("network");
+      assertFalse(network.<Boolean>get("enabled"));
+      assertFalse(VelocityConfiguration.NetworkConfig.fromConfig(network).loginGate());
+    }
+  }
+
+  @Test
   void loginGateIsOffByDefaultAndReadFromConfig() {
     assertFalse(VelocityConfiguration.NetworkConfig.DEFAULT.loginGate());
     assertFalse(VelocityConfiguration.NetworkConfig.fromConfig(
