@@ -24,6 +24,14 @@ jobs:
       - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
       - name: Build
         run: ./gradlew build
+      - name: Publish the API to repo.cosmoworks.dev
+        # Not on pull requests, and skipped until the MAVEN_PUBLISH_TOKEN secret is set.
+        if: github.event_name != 'pull_request'
+        env:
+          MAVEN_PUBLISH_TOKEN: ${{ secrets.MAVEN_PUBLISH_TOKEN }}
+        run: |
+          if [ -z "$MAVEN_PUBLISH_TOKEN" ]; then echo "No publish token, skipping."; exit 0; fi
+          ./gradlew --console=plain :velocity-api:publishMavenPublicationToCosmoworksRepository
       - name: Name the proxy jar
         run: |
           version=$(sed -n 's/^version=//p' gradle.properties)
