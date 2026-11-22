@@ -53,7 +53,8 @@ jobs:
         run: |
           version=$(cat version.txt)
           n=$GITHUB_RUN_NUMBER
+          sha=$(sha256sum spaceport-*.jar | cut -d" " -f1)
           gh release delete dev --yes --cleanup-tag 2>/dev/null || true   # old rolling release from the first setup
           gh release create "build-$n" spaceport-*.jar --target "$GITHUB_SHA" --latest \
             --title "Spaceport $version build $n" \
-            --notes "Build $n of spaceport (${GITHUB_SHA::8}). Download the jar and run it like Velocity: java -jar spaceport-$version-$n.jar"
+            --notes "Build $n of spaceport (${GITHUB_SHA::8}). Download the jar and run it like Velocity: java -jar spaceport-$version-$n.jar SHA-256: $sha"
